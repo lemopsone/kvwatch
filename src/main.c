@@ -222,5 +222,6 @@ module_init(kv_init);
 module_exit(kv_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("student");
-MODULE_DESCRIPTION("Key-value store with per-key subscriptions and epoll notifications");
+MODULE_AUTHOR("Varchenko Maxim");
+MODULE_DESCRIPTION("Key-value store with per-key subscriptions and process notifications");
+MODULE_VERSION("1.0");

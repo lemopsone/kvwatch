@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    printf("Watching key '%s' for changes. Press Ctrl+C to stop.\n", keyname);
+    printf("[test_sub] watching '%s' for changes.\n", keyname);
 
     for (;;) {
         int rc = kvw_wait_event(&cli, keybuf, sizeof(keybuf), -1);
@@ -40,11 +40,11 @@ int main(int argc, char *argv[])
 
         if (kvw_get_string(&cli, keybuf, valbuf, sizeof(valbuf)) == 0) {
             event_idx++;
-            printf("[event %d] key='%s' value='%s'\n",
+            printf("[test_sub] event %d: key='%s', new value='%s'\n",
                    event_idx, keybuf, valbuf);
         } else {
             event_idx++;
-            printf("[event %d] key='%s' value not found\n",
+            printf("[test_sub] event %d: key='%s' value not found\n",
                    event_idx, keybuf);
         }
     }

@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    printf("SET key='%s' value='%s'\n", key, val);
+    printf("[test_set] SET key='%s' value='%s'\n", key, val);
 
     kvw_close(&cli);
     return 0;
