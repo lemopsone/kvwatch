@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
 {
     const char *key = "stat_key";
     kv_len_t maxev = 4;
-    struct kvw_client cli;
+    int fd = -1;
     struct kv_stats st;
     int i;
 
@@ -23,36 +23,35 @@ int main(int argc, char *argv[])
         maxev = (kv_len_t)v;
     }
 
-    cli.fd = -1;
-    if (kvw_open(&cli, 1) < 0) {
+    if (kvw_open(&fd, 1) < 0) {
         perror("kvw_open");
         return 1;
     }
 
-    if (kvw_set_max_events(&cli, maxev) < 0) {
+    if (kvw_set_max_events(fd, maxev) < 0) {
         perror("kvw_set_max_events");
-        kvw_close(&cli);
+        kvw_close(&fd);
         return 1;
     }
 
-    if (kvw_subscribe(&cli, key) < 0) {
+    if (kvw_subscribe(fd, key) < 0) {
         perror("kvw_subscribe");
-        kvw_close(&cli);
+        kvw_close(&fd);
         return 1;
     }
 
     for (i = 0; i < 10000; i++) {
         char vbuf[32];
         snprintf(vbuf, sizeof(vbuf), "val_%d", i);
-        if (kvw_set_string(&cli, key, vbuf) < 0) {
+        if (kvw_set_string(fd, key, vbuf) < 0) {
             perror("kvw_set_string");
             break;
         }
     }
 
-    if (kvw_get_stats(&cli, &st) < 0) {
+    if (kvw_get_stats(fd, &st) < 0) {
         perror("kvw_get_stats");
-        kvw_close(&cli);
+        kvw_close(&fd);
         return 1;
     }
 
@@ -62,6 +61,6 @@ int main(int argc, char *argv[])
     printf("  dropped_events = %llu\n",
            (unsigned long long)st.dropped_events);
 
-    kvw_close(&cli);
+    kvw_close(&fd);
     return 0;
 }

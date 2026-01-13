@@ -7,43 +7,27 @@
 
 #include "kvwatch_user.h"
 
-int kvw_open(struct kvw_client *c, int nonblock)
+int kvw_open(int *fd, int nonblock)
 {
     int flags = O_RDONLY;
     if (nonblock)
         flags |= O_NONBLOCK;
 
-    c->fd = open("/dev/kvwatch", flags);
-    if (c->fd < 0)
+    *fd = open("/dev/kvwatch", flags);
+    if (*fd < 0)
         return -1;
 
     return 0;
 }
 
-void kvw_close(struct kvw_client *c)
+void kvw_close(int *fd)
 {
-    if (c->fd >= 0)
-        close(c->fd);
-    c->fd = -1;
+    if (*fd >= 0)
+        close(*fd);
+    *fd = -1;
 }
 
-int kvw_subscribe(struct kvw_client *c, const char *key)
-{
-    struct kv_key k;
-
-    if (!key)
-        return -1;
-
-    memset(&k, 0, sizeof(k));
-    snprintf(k.name, KV_MAX_KEY_LEN, "%s", key);
-
-    if (ioctl(c->fd, KV_IOC_SUBSCRIBE, &k) < 0)
-        return -1;
-
-    return 0;
-}
-
-int kvw_unsubscribe(struct kvw_client *c, const char *key)
+int kvw_subscribe(int fd, const char *key)
 {
     struct kv_key k;
 
@@ -53,13 +37,29 @@ int kvw_unsubscribe(struct kvw_client *c, const char *key)
     memset(&k, 0, sizeof(k));
     snprintf(k.name, KV_MAX_KEY_LEN, "%s", key);
 
-    if (ioctl(c->fd, KV_IOC_UNSUBSCRIBE, &k) < 0)
+    if (ioctl(fd, KV_IOC_SUBSCRIBE, &k) < 0)
         return -1;
 
     return 0;
 }
 
-int kvw_set(struct kvw_client *c, const char *key, const void *val, kv_len_t len)
+int kvw_unsubscribe(int fd, const char *key)
+{
+    struct kv_key k;
+
+    if (!key)
+        return -1;
+
+    memset(&k, 0, sizeof(k));
+    snprintf(k.name, KV_MAX_KEY_LEN, "%s", key);
+
+    if (ioctl(fd, KV_IOC_UNSUBSCRIBE, &k) < 0)
+        return -1;
+
+    return 0;
+}
+
+int kvw_set(int fd, const char *key, const void *val, kv_len_t len)
 {
     struct kv_pair pair;
 
@@ -74,13 +74,13 @@ int kvw_set(struct kvw_client *c, const char *key, const void *val, kv_len_t len
     if (len > 0 && val)
         memcpy(pair.value, val, len);
 
-    if (ioctl(c->fd, KV_IOC_SET, &pair) < 0)
+    if (ioctl(fd, KV_IOC_SET, &pair) < 0)
         return -1;
 
     return 0;
 }
 
-int kvw_set_string(struct kvw_client *c, const char *key, const char *val)
+int kvw_set_string(int fd, const char *key, const char *val)
 {
     kv_len_t len;
 
@@ -88,10 +88,10 @@ int kvw_set_string(struct kvw_client *c, const char *key, const char *val)
         val = "";
 
     len = (kv_len_t)strlen(val);
-    return kvw_set(c, key, val, len);
+    return kvw_set(fd, key, val, len);
 }
 
-int kvw_get(struct kvw_client *c, const char *key, void *buf, kv_len_t buf_len, kv_len_t *out_len)
+int kvw_get(int fd, const char *key, void *buf, kv_len_t buf_len, kv_len_t *out_len)
 {
     struct kv_pair pair;
 
@@ -101,7 +101,7 @@ int kvw_get(struct kvw_client *c, const char *key, void *buf, kv_len_t buf_len, 
     memset(&pair, 0, sizeof(pair));
     snprintf(pair.key, KV_MAX_KEY_LEN, "%s", key);
 
-    if (ioctl(c->fd, KV_IOC_GET, &pair) < 0)
+    if (ioctl(fd, KV_IOC_GET, &pair) < 0)
         return -1;
 
     if (pair.vlen > buf_len)
@@ -116,21 +116,21 @@ int kvw_get(struct kvw_client *c, const char *key, void *buf, kv_len_t buf_len, 
     return 0;
 }
 
-int kvw_get_string(struct kvw_client *c, const char *key, char *buf, size_t buflen)
+int kvw_get_string(int fd, const char *key, char *buf, size_t buflen)
 {
     kv_len_t out_len;
 
     if (!buf || buflen == 0)
         return -1;
 
-    if (kvw_get(c, key, buf, (kv_len_t)(buflen - 1), &out_len) < 0)
+    if (kvw_get(fd, key, buf, (kv_len_t)(buflen - 1), &out_len) < 0)
         return -1;
 
     buf[out_len] = '\0';
     return 0;
 }
 
-int kvw_wait_event(struct kvw_client *c, char *keybuf, size_t keybuf_len, int timeout_ms)
+int kvw_wait_event(int fd, char *keybuf, size_t keybuf_len, int timeout_ms)
 {
     struct pollfd pfd;
     ssize_t r;
@@ -138,7 +138,7 @@ int kvw_wait_event(struct kvw_client *c, char *keybuf, size_t keybuf_len, int ti
     if (!keybuf || keybuf_len < KV_MAX_KEY_LEN)
         return -1;
 
-    pfd.fd = c->fd;
+    pfd.fd = fd;
     pfd.events = POLLIN;
     pfd.revents = 0;
 
@@ -155,7 +155,7 @@ int kvw_wait_event(struct kvw_client *c, char *keybuf, size_t keybuf_len, int ti
     }
 
     memset(keybuf, 0, keybuf_len);
-    r = read(c->fd, keybuf, KV_MAX_KEY_LEN);
+    r = read(fd, keybuf, KV_MAX_KEY_LEN);
     if (r <= 0)
         return -1;
 
@@ -167,21 +167,21 @@ int kvw_wait_event(struct kvw_client *c, char *keybuf, size_t keybuf_len, int ti
     return 1;
 }
 
-int kvw_get_stats(struct kvw_client *c, struct kv_stats *st)
+int kvw_get_stats(int fd, struct kv_stats *st)
 {
     if (!st)
         return -1;
 
     memset(st, 0, sizeof(*st));
-    if (ioctl(c->fd, KV_IOC_GET_STATS, st) < 0)
+    if (ioctl(fd, KV_IOC_GET_STATS, st) < 0)
         return -1;
 
     return 0;
 }
 
-int kvw_set_max_events(struct kvw_client *c, kv_len_t maxev)
+int kvw_set_max_events(int fd, kv_len_t maxev)
 {
-    if (ioctl(c->fd, KV_IOC_SET_MAXEV, &maxev) < 0)
+    if (ioctl(fd, KV_IOC_SET_MAXEV, &maxev) < 0)
         return -1;
 
     return 0;
